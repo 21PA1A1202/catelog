@@ -1,70 +1,87 @@
-import org.json.JSONObject;
+import java.io.*;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.MathContext;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.math.BigInteger;
+import java.util.*;
+import java.util.regex.*;
 
-public class Catelog test{
+public class Main {
 
     public static void main(String[] args) throws Exception {
         
-        String tc1= new String(Files.readAllBytes(Paths.get("testcase1.json")));
-        String tc2 = new String(Files.readAllBytes(Paths.get("testcase2.json")));
+        String con = new String(Files.readAllBytes(Paths.get("src/main/java/testcase1.json")));
+        Map<String, Map<String, String>> inp = parseJSON(con);
 
         
-        JSONObject t1 = new JSONObject(tc1);
-        JSONObject t2= new JSONObject(tc2);
-
-        // Find and print the secret for both test cases
-        System.out.println("Secret for Test Case 1: " + findSecret(t1));
-        System.out.println("Secret for Test Case 2: " + findSecret(t22));
-    }
-
-    public static BigInteger findSecret(JSONObject testCase) {
-    
-        JSONObject keys = testCase.getJSONObject("keys");
-        int n = keys.getInt("n");
-        int k = keys.getInt("k");
+        Map<String, String> keys = inp.get("keys");
+        int k = Integer.parseInt(keys.get("k"));
 
        
-        double[] x = new double[k];
-        BigInteger[] y = new BigInteger[k];
-        int index = 0;
+        BigDecimal[] xValues = new BigDecimal[k];
+        BigDecimal[] yValues = new BigDecimal[k];
+        int in= 0;
 
-        for (String key : testCase.keySet()) {
-            if (key.equals("keys")) continue;
-            if (index >= k) break; 
-
-            JSONObject point = testCase.getJSONObject(key);
-            int base = point.getInt("base");
-            String value = point.getString("value");
-
-            // Decode x and y values
-            x[index] = Double.parseDouble(key); 
-            y[index] = new BigInteger(value, base); 
-            index++;
+       
+        for (String i  : inp.keySet()) {
+            if (!i.equals("keys")) {
+                Map<String, String> root = inp.get(i);
+                int b= Integer.parseInt(root.get("base"));
+                BigDecimal y = new BigDecimal(new BigInteger(root.get("value"), b));
+                xValues[in] = new BigDecimal(i);
+                yValues[in] = y;
+                in++;
+                if (in>= k) break;
+            }
         }
 
-      
-        return lagrangeInterpolation(x, y);
+       
+        BigDecimal ct = lagrang(xValues, yValues);
+        System.out.println("The constant t (c) is: " + ct);
     }
-
-    public static BigInteger lagrangeInterpolation(double[] x, BigInteger[] y) {
-        BigInteger result = BigInteger.ZERO;
+    private static BigDecimal lagrang(BigDecimal[] x, BigDecimal[] y) {
+        BigDecimal r = BigDecimal.ZERO;
 
         for (int i = 0; i < x.length; i++) {
-            BigInteger term = y[i];
+            BigDecimal t = y[i];
 
             for (int j = 0; j < x.length; j++) {
                 if (i != j) {
-                    BigInteger numerator = BigInteger.valueOf((long) -x[j]);
-                    BigInteger denominator = BigInteger.valueOf((long) (x[i] - x[j]));
-                    term = term.multiply(numerator).divide(denominator);
+                    BigDecimal num = x[j].negate(MathContext.DECIMAL128);
+                    BigDecimal den = x[i].subtract(x[j], MathContext.DECIMAL128);
+                    t = t.multiply(num.divide(den, MathContext.DECIMAL128), MathContext.DECIMAL128);
                 }
             }
 
-            result = result.add(term);
+            r = r.add(t, MathContext.DECIMAL128);
         }
 
-        return result;
+        return r;
     }
+
+    private static Map<String, Map<String, String>> parseJSON(String con) {
+        Map<String, Map<String, String>> r = new HashMap<>();
+        Pattern out = Pattern.compile("\"(\\w+)\":\\s*\\{([^}]*)}");
+        Matcher outm = out.matcher(con);
+
+        while (outm.find()) {
+            String i = outm.group(1);
+            String incon = outm.group(2);
+
+            Map<String, String> inmap = new HashMap<>();
+            Pattern inpa = Pattern.compile("\"(\\w+)\":\\s*\"?(\\w+)\"?");
+            Matcher inma = inpa.matcher(incon);
+
+            while (inma.find()) {
+                inmap.put(inma.group(1), inma.group(2));
+            }
+
+            r.put(i, inmap);
+        }
+
+        return r;
+    }
+
+
 }
